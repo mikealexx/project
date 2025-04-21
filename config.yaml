@@ -20,3 +20,7 @@ warmup_time: 2
 
 # default is 64x64 square image
 image_size: 64 
+# config.yaml
+play_buffer_time: 10   # seconds to wait for user to press play
+capture_duration: 15   # duration of actual pcap capture after play
+wait_timeout: 10  
