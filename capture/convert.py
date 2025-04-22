@@ -42,4 +42,4 @@ def convert_pcaps(parallel_processes=5):
         pcap_files = pcap_files[parallel_processes:]
 
 if __name__ == "__main__":
-    convert_pcaps()
+    convert_pcaps(1)

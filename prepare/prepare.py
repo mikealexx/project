@@ -66,6 +66,7 @@ def get_quic_connection_ids(json_file):
             
     return list(set(quic_connection_ids))
 
+
 def clean_pcap_csv(csv_path, json_path, save=False, save_path=None):
     """
     Clean QUIC packets from tshark CSV and return a labeled DataFrame.
@@ -147,10 +148,11 @@ def clean_pcap_csv(csv_path, json_path, save=False, save_path=None):
 
 if __name__ == "__main__":
     # Example usage
-    csv_path = "captures/csv/video/youtube/youtube-[2025-04-21-19-26-44].csv"
-    json_path = "captures/pcap/video/youtube/youtube-[2025-04-21-19-26-44].json"
+    csv_path = "captures/csv/video/youtube/youtube-[2025-04-22-20-09-55].csv"
+    json_path = "captures/pcap/video/youtube/youtube-[2025-04-22-20-09-55].json"
     cleaned_df = clean_pcap_csv(csv_path, json_path)
     if cleaned_df is not None:
-        print(cleaned_df.head())
+        with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
+            print("Number of packets found: ", len(cleaned_df))
     else:
         print("[ERROR] No valid data found.")
