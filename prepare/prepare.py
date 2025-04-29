@@ -3,6 +3,10 @@ import json
 import os
 from urllib.parse import urlparse
 from event_types_list import event_type
+import yaml
+
+with open('config.yaml', 'r') as f:
+    config = yaml.safe_load(f)
 
 MAX_PACKET_LENGTH = 1500
 
@@ -145,14 +149,38 @@ def clean_pcap_csv(csv_path, json_path, save=False, save_path=None):
 
     return clean_data
 
+def clean_all_pcap_csvs(base_csv_dir, base_json_dir):
+    """
+    Recursively clean all CSVs under base_csv_dir and save them with 'cleaned_' prefix.
+    """
+    for root, dirs, files in os.walk(base_csv_dir):
+        for file in files:
+            if file.endswith(".csv") and not file.startswith("cleaned_"):
+                csv_path = os.path.join(root, file)
+                
+                # Build the corresponding JSON path
+                relative_path = os.path.relpath(csv_path, base_csv_dir)
+                json_path = os.path.join(base_json_dir, relative_path)
+                json_path = os.path.splitext(json_path)[0] + ".json"  # replace .csv with .json
+                
+                if not os.path.exists(json_path):
+                    print(f"[WARN] JSON not found for {csv_path}, skipping.")
+                    continue
+
+                print(f"[INFO] Processing {csv_path}...")
+
+                # Clean the CSV
+                cleaned_df = clean_pcap_csv(csv_path, json_path)
+
+                if cleaned_df is not None:
+                    cleaned_filename = "cleaned_" + file
+                    cleaned_path = os.path.join(root, cleaned_filename)
+                    cleaned_df.to_csv(cleaned_path, index=False)
+                    print(f"[INFO] Saved cleaned CSV to {cleaned_path}.")
+                else:
+                    print(f"[WARN] No valid data in {csv_path}, skipped saving.") 
 
 if __name__ == "__main__":
-    # Example usage
-    csv_path = "captures/csv/video/youtube/youtube-[2025-04-22-20-09-55].csv"
-    json_path = "captures/pcap/video/youtube/youtube-[2025-04-22-20-09-55].json"
-    cleaned_df = clean_pcap_csv(csv_path, json_path)
-    if cleaned_df is not None:
-        with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
-            print("Number of packets found: ", len(cleaned_df))
-    else:
-        print("[ERROR] No valid data found.")
+    base_csv_dir = config['csv_output_directory']
+    base_json_dir = config['pcap_output_directory']
+    clean_all_pcap_csvs(base_csv_dir, base_json_dir)

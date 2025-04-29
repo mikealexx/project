@@ -1,6 +1,9 @@
 # Directory containing text files with links (one per line)
 links_directory: "./links"
 
+# Temporary directory for storing downloaded files
+temp_directory: "./temp"
+
 # Output directories
 captures_directory: "./captures"
 pcap_output_directory: "./captures/pcap"
@@ -10,7 +13,7 @@ png_output_directory: "./data/png"
 label_output_directory: "./data/labels"
 
 # QUIC packet capture duration in seconds
-capture_duration: 15
+capture_duration: 5
 
 # Network interface to capture on (e.g., eth0, wlan0)
 network_interface: "eth0"
@@ -19,7 +22,6 @@ network_interface: "eth0"
 warmup_time: 2
 
 # default is 64x64 square image
-image_size: 64 
+image_size: 32 
 # config.yaml
-play_buffer_time: 10   # seconds to wait for user to press play
 wait_timeout: 10  

@@ -10,6 +10,7 @@ def create_folders(config_path="config.yaml"):
 
     # Directories to create (from config)
     dirs_to_create = [
+        config["temp_directory"],
         config["pcap_output_directory"],
         config["csv_output_directory"],
         config["png_output_directory"],
