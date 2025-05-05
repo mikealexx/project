@@ -55,11 +55,29 @@ def capture_video(website, url):
     tshark_process = tshark.run_tshark(config["network_interface"], pcap_file)
     time.sleep(config["warmup_time"])
 
-    # Launch browser
     driver = webdriver.Chrome(options=options)
     driver.get(url)
+    logger.info(f"Opened {url}, checking if page finishes loading in 5s...")
 
-    logger.info(f"Opened {url}")
+    start_time = time.time()
+    timeout = 5
+
+    while time.time() - start_time < timeout:
+        try:
+            load_event_end = driver.execute_script("return window.performance.timing.loadEventEnd")
+            navigation_start = driver.execute_script("return window.performance.timing.navigationStart")
+            if load_event_end and load_event_end > navigation_start:
+                logger.info("Page finished loading based on performance timing.")
+                break
+        except Exception:
+            pass
+        time.sleep(0.25)
+    else:
+        logger.warning("Page did not finish loading in time. Skipping this URL.")
+        tshark.kill_tshark(tshark_process)
+        driver.quit()
+        return
+
 
     time.sleep(config["capture_duration"])
 

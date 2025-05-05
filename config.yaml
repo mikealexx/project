@@ -25,3 +25,7 @@ warmup_time: 2
 image_size: 32 
 # config.yaml
 wait_timeout: 10  
+
+test_size: 0.2
+
+random_state: 42
