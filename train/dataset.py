@@ -54,10 +54,12 @@ class QUICDataset(Dataset):
         self.img_dir = self.png_output_directory
         self.transform = transform
 
-        # Prepare label encoding
-        self.classes = sorted(self.dataframe['application'].unique())
+        # Combine category + application as label
+        self.dataframe['combined_label'] = self.dataframe['category'] + "_" + self.dataframe['application']
+        self.classes = sorted(self.dataframe['combined_label'].unique())
         self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
-        self.labels = self.dataframe['application'].map(self.class_to_idx)
+        self.labels = self.dataframe['combined_label'].map(self.class_to_idx)
+
 
     def __len__(self):
         return len(self.dataframe)

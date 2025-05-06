@@ -13,7 +13,7 @@ png_output_directory: "./data/png"
 label_output_directory: "./data/labels"
 
 # QUIC packet capture duration in seconds
-capture_duration: 5
+capture_duration: 10
 
 # Network interface to capture on (e.g., eth0, wlan0)
 network_interface: "eth0"

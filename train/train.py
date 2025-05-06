@@ -1,87 +1,95 @@
-from torchvision import transforms
-from dataset import QUICDataset
-from trainer import Trainer
-import yaml, torch
-from torchvision import transforms
-from PIL import Image
-from torchvision.models import squeezenet1_0, SqueezeNet1_0_Weights
+import os
+# ✅ Suppress TensorFlow logs, use CPU only, disable oneDNN noise
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
+# ✅ Silence absl logging
+import logging
+import absl.logging
+absl.logging.set_verbosity(absl.logging.ERROR)
+logging.getLogger('absl').setLevel(logging.ERROR)
+
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+import tensorflow as tf
+from tensorflow.keras.utils import to_categorical, load_img, img_to_array
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, Input
+from tensorflow.keras.optimizers import Adam
+from sklearn.preprocessing import LabelEncoder
+
+# ✅ Load config
+import yaml
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
-def predict_image_label(image_path, model_path, model_builder, device=None):
-    """
-    Predict the label of a single PNG image using a saved model (.pth).
+# ✅ Config
+LABEL_CSV = config["label_output_directory"] + "/labels.csv"
+IMAGE_SIZE = (config["image_size"], config["image_size"])
+BATCH_SIZE = 32
+EPOCHS = 10
 
-    Args:
-        image_path (str): Path to the PNG image.
-        model_path (str): Path to the .pth file with model + metadata.
-        model_builder (callable): Function that builds the model given num_classes.
-        device (torch.device): Device to use.
+# ✅ Load data
+df = pd.read_csv(LABEL_CSV)
+df["label1"] = df["category"]
+df["label2"] = df["category"] + "_" + df["application"]
 
-    Returns:
-        str: Predicted label
-    """
-    device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# ✅ Add full PNG paths
+png_base_path = config["png_output_directory"].rstrip("/")
+df["filepath"] = df["filepath"].apply(lambda x: os.path.join(png_base_path, x))
 
-    # Load checkpoint
-    checkpoint = torch.load(model_path, map_location=device)
-    num_classes = checkpoint["num_classes"]
-    class_names = checkpoint["class_names"]
-
-    # Build and load model
-    model = model_builder(num_classes).to(device)
-    model.load_state_dict(checkpoint["model_state"])
-    model.eval()
-
-    # Transform image
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225]
-        )
-    ])
-
-    image = Image.open(image_path).convert("RGB")
-    image = transform(image).unsqueeze(0).to(device)
-
-    # Predict
-    with torch.no_grad():
-        output = model(image)
-        output = output.squeeze()  # shape: [num_classes]
-        _, predicted = torch.max(output, 0)  # dim=0 since it's now flat
-
-        label_idx = predicted.item()
-
-    return class_names[label_idx]
-
+def load_images_and_labels(label_type):
+    images = []
+    labels = []
+    for _, row in df.iterrows():
+        try:
+            img = load_img(row["filepath"], target_size=IMAGE_SIZE)
+            img = img_to_array(img) / 255.0
+            images.append(img)
+            labels.append(row[label_type])
+        except Exception as e:
+            print(f"Failed to load {row['filepath']}: {e}")
+    return np.array(images), np.array(labels)
 
 def build_model(num_classes):
-    model = squeezenet1_0(weights=None)  # or weights=SqueezeNet1_0_Weights.DEFAULT if pretrained
-    model.classifier[1] = torch.nn.Conv2d(512, num_classes, kernel_size=1)
-    model.num_classes = num_classes
+    model = Sequential([
+        Input(shape=(32, 32, 3)),
+        Conv2D(32, (3, 3), activation='relu'),
+        MaxPooling2D(2, 2),
+        Conv2D(64, (3, 3), activation='relu'),
+        MaxPooling2D(2, 2),
+        Flatten(),
+        Dense(128, activation='relu'),
+        Dropout(0.5),
+        Dense(num_classes, activation='softmax')
+    ])
+    model.compile(optimizer=Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
-if __name__ == "__main__":
-#     transform = transforms.Compose([
-#         transforms.Resize((224, 224)),
-#         transforms.ToTensor()
-#     ])
+# ✅ Training loop for label1 and label2
+for label_type in ["label1", "label2"]:
+    print(f"\n🚀 Training model for {label_type}...")
+    X, y = load_images_and_labels(label_type)
+    
+    le = LabelEncoder()
+    y_encoded = le.fit_transform(y)
+    y_cat = to_categorical(y_encoded)
 
-#     folds = QUICDataset.from_csv_kfold(config["label_output_directory"] + "/labels.csv", stratify_by="category", transform=transform, k=4)
+    X_train, X_test, y_train, y_test = train_test_split(X, y_cat, test_size=0.2, random_state=42)
 
-#     # Train on fold 0
-#     train_ds, test_ds = folds[0]
-#     trainer = Trainer(train_ds, test_ds, num_classes=len(train_ds.classes), class_names=['browsing', 'video']
-# )
-#     trainer.train(epochs=25)
-#     trainer.evaluate()
-#     trainer.save("resnet18_quic_fold0.pth")
-    label = predict_image_label(
-        "data/png/video/youtube/youtube-[2025-05-05-19-30-45].png",
-        "resnet18_quic_fold0.pth",
-        build_model
-    )
-    print("Predicted label:", label)
+    model = build_model(num_classes=y_cat.shape[1])
+    model.fit(X_train, y_train, validation_data=(X_test, y_test), batch_size=BATCH_SIZE, epochs=EPOCHS)
+
+    # ✅ Save model in modern format
+    model.save(f"model_{label_type}.keras")
+
+    # ✅ Save label mappings
+    with open(f"labels_{label_type}.txt", "w") as f:
+        for label in le.classes_:
+            f.write(f"{label}\n")
+
+    # ✅ Final evaluation on test set
+    loss, acc = model.evaluate(X_test, y_test, verbose=0)
+    print(f"✅ Test results for {label_type} — Accuracy: {acc:.4f}, Loss: {loss:.4f}")
