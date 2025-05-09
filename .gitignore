@@ -1,0 +1,17 @@
+# vscode
+.vscode/
+
+# venv
+.venv/
+
+# python
+__pycache__/
+
+# captures
+captures/
+
+# data
+data/
+
+# models
+models/
