@@ -83,7 +83,7 @@ if __name__ == "__main__":
     # trainer.evaluate()
     # trainer.save("resnet18_quic_fold0.pth")
     label = predict_image_label(
-        "data/png/video/youtube/youtube-[2025-05-06-18-28-20].png",
+        "data/png/video/vimeo/vimeo-[2025-05-06-18-59-23].png",
         "resnet18_quic_fold0.pth",
         build_model
     )

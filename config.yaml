@@ -19,10 +19,10 @@ capture_duration: 10
 network_interface: "eth0"
 
 # Delay before starting capture (to allow browser setup)
-warmup_time: 2
+warmup_time: 0.5
 
 # default is 64x64 square image
-image_size: 32 
+image_size: 64 
 # config.yaml
 wait_timeout: 10  
 

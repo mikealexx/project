@@ -9,10 +9,10 @@ with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
 # Constants
-IMAGE_SIZE = config.get('image_size', 64)  # Default to 64 if not set
+IMAGE_SIZE = config["image_size"]  # Default to 64 if not set
 PNG_OUTPUT_DIR = config['png_output_directory']
 MAX_PACKET_LENGTH = 1500  # Ethernet MTU
-SESSION_DURATION = 15.0   # seconds
+SESSION_DURATION = 10.5   # seconds
 USE_GAMMA_BOOST = config.get('use_gamma_boost', True)
 
 
