@@ -4,6 +4,7 @@ import torch.nn as nn
 from torchvision import transforms
 from PIL import Image
 import pandas as pd
+from cnn import SimpleCNN
 import yaml
 
 # === CONFIG ===
@@ -14,34 +15,6 @@ IMAGE_SIZE = config['image_size']
 MODEL_DIR = 'models'
 IMAGES_DIR = config['png_output_directory']
 LABELS_PATH = config['label_output_directory'] + '/labels.csv'
-
-# === MODEL ===
-class SimpleCNN(nn.Module):
-    def __init__(self, num_classes):
-        super(SimpleCNN, self).__init__()
-        self.conv_layers = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-        )
-        self.fc_layers = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(64 * (IMAGE_SIZE // 8) * (IMAGE_SIZE // 8), 128),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, num_classes)
-        )
-
-    def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.fc_layers(x)
-        return x
 
 # === PREDICT FUNCTION ===
 def predict_image(model_path, label_column, image_path):
@@ -74,7 +47,7 @@ def predict_image(model_path, label_column, image_path):
 
 # === MAIN ===
 def main():
-    image_path = "data/png/browsing/facebook/facebook-[2025-05-06-17-05-19].png"
+    image_path = "data/png/video/vimeo/vimeo-[2025-05-06-18-49-18].png"
 
     category = predict_image(os.path.join(MODEL_DIR, 'model_category.pt'), 'category', image_path)
     category_app = predict_image(os.path.join(MODEL_DIR, 'model_category_application.pt'), 'category_application', image_path)

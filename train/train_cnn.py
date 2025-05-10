@@ -9,6 +9,7 @@ import torch.optim as optim
 from torchvision import transforms, datasets
 from torch.utils.data import DataLoader, Dataset
 from PIL import Image
+from cnn import SimpleCNN
 import yaml
 
 with open('config.yaml', 'r') as f:
@@ -18,7 +19,9 @@ with open('config.yaml', 'r') as f:
 LABELS_PATH = config['label_output_directory'] + '/labels.csv'
 IMAGES_DIR = config['png_output_directory']
 BATCH_SIZE = 32
-EPOCHS = 10
+# BATCH_SIZE = 16
+EPOCHS = 20
+# EPOCHS = 20
 LEARNING_RATE = 0.001
 IMAGE_SIZE = config['image_size']
 MODEL_DIR = 'models'
@@ -44,34 +47,6 @@ class ImageLabelDataset(Dataset):
 
         return image, label
 
-# === MODEL ===
-class SimpleCNN(nn.Module):
-    def __init__(self, num_classes):
-        super(SimpleCNN, self).__init__()
-        self.conv_layers = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-        )
-        self.fc_layers = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(64 * (IMAGE_SIZE // 8) * (IMAGE_SIZE // 8), 128),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, num_classes)
-        )
-
-    def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.fc_layers(x)
-        return x
-
 # === TRAIN FUNCTION ===
 def train_model(label_column, model_save_path):
     df = pd.read_csv(LABELS_PATH)
@@ -82,11 +57,20 @@ def train_model(label_column, model_save_path):
     df[label_column] = LabelEncoder().fit_transform(df[label_column])
 
 
-    train_df, test_df = train_test_split(df, test_size=0.2, stratify=df[label_column], random_state=42)
+    train_df, test_df = train_test_split(df, test_size=0.1, stratify=df[label_column], random_state=42)
+
+    print(f"Training on {len(train_df)} samples, Testing on {len(test_df)} samples")
 
     transform = transforms.Compose([
         transforms.ToTensor()
     ])
+    # transform = transforms.Compose([
+    #     transforms.RandomHorizontalFlip(),
+    #     transforms.RandomVerticalFlip(),
+    #     transforms.ColorJitter(brightness=0.2, contrast=0.2),
+    #     transforms.ToTensor()
+    # ])
+
 
     train_dataset = ImageLabelDataset(train_df, label_column, transform)
     test_dataset = ImageLabelDataset(test_df, label_column, transform)
@@ -122,14 +106,16 @@ def train_model(label_column, model_save_path):
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
-    print(f"Test Accuracy for {label_column}: {100 * correct / total:.2f}%")
+    print(f"Test Accuracy for {label_column}: {100 * correct / total:.2f}%\n")
     os.makedirs(MODEL_DIR, exist_ok=True)
     torch.save(model.state_dict(), model_save_path)
 
 # === MAIN ===
 def main():
     os.makedirs(MODEL_DIR, exist_ok=True)
+    print("Training model for category:")
     train_model('category', os.path.join(MODEL_DIR, 'model_category.pt'))
+    print("Training model for category_application:")
     train_model('category_application', os.path.join(MODEL_DIR, 'model_category_application.pt'))
 
 if __name__ == '__main__':
