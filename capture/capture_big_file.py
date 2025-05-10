@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
-def capture_big_file(website, url):
+def capture_big_file_tcp(website, url):
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     base_output_dir = os.path.join(config["pcap_output_directory"], "big_file", website)
     os.makedirs(base_output_dir, exist_ok=True)
@@ -34,10 +34,10 @@ def capture_big_file(website, url):
     with open(key_file, 'a'):
         os.utime(key_file, None)
 
-    # Chrome options
+    # Chrome options for TCP only
     options = Options()
     options.add_argument("--disable-gpu")
-    options.add_argument("--enable-quic")
+    options.add_argument("--disable-quic")  # <== explicitly disable QUIC
     options.add_argument("--disable-application-cache")
     options.add_argument("--incognito")
     options.add_argument("--no-sandbox")
@@ -55,14 +55,14 @@ def capture_big_file(website, url):
     }
     options.add_experimental_option("prefs", prefs)
 
-    logger.info("Starting big file capture...")
+    logger.info("Starting big file TCP capture...")
     tshark_process = tshark.run_tshark(config["network_interface"], pcap_file)
     time.sleep(config["warmup_time"])
 
     # Launch browser
     driver = webdriver.Chrome(options=options)
 
-    # Force download to the specified folder using CDP (bypasses Save As dialog)
+    # Force download to the specified folder using CDP
     download_dir = config.get("download_temp_dir", "/tmp/downloads")
     os.makedirs(download_dir, exist_ok=True)
     driver.execute_cdp_cmd(
@@ -77,28 +77,27 @@ def capture_big_file(website, url):
 
     logger.info(f"Started downloading {url}")
 
-    time.sleep(config["capture_duration"])  # Only capture short burst
+    time.sleep(config["capture_duration"])
 
     logger.info("Capture finished. Cleaning up...")
     tshark.kill_tshark(tshark_process)
     driver.quit()
 
-    # Delete any downloaded files (partial or full)
-    download_dir = config["temp_directory"]
+    # Delete any downloaded files
     for filename in os.listdir(download_dir):
         if filename.endswith('.crdownload') or filename.endswith('.part') or filename.endswith('.tmp'):
             file_path = os.path.join(download_dir, filename)
             logger.info(f"Deleting partial file: {file_path}")
             os.remove(file_path)
 
-    logger.info(f"Capture complete for {url}")
+    logger.info(f"TCP Capture complete for {url}")
 
 def capture_big_files():
     big_file_urls = dir_utils.load_links_from_category("big_file", config["links_directory"])
     for website, urls in big_file_urls.items():
         for url in urls:
             try:
-                capture_big_file(website, url)
+                capture_big_file_tcp(website, url)
             except Exception as e:
                 logger.error(f"Error capturing {url}: {e}")
 

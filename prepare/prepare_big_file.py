@@ -71,14 +71,10 @@ def get_quic_connection_ids(json_file):
     return list(set(quic_connection_ids))
 
 
-def clean_pcap_csv(csv_path, json_path, save=False, save_path=None):
+def clean_pcap_csv_tcp(csv_path, save=False, save_path=None):
     """
-    Clean QUIC packets from tshark CSV and return a labeled DataFrame.
-    Filters packets for a single QUIC session between client and server IPs
-    based on DCID from the JSON NetLog file.
-
-    Returns a DataFrame with:
-    [Time, Length, Source, Destination, Direction]
+    Clean TCP packets from tshark CSV and return a labeled DataFrame.
+    Identifies the main client-server pair and filters the communication between them.
     """
     try:
         df = pd.read_csv(csv_path)
@@ -92,38 +88,19 @@ def clean_pcap_csv(csv_path, json_path, save=False, save_path=None):
     if df.empty:
         return None
 
-    quic_ids = get_quic_connection_ids(json_path)
-    if not quic_ids:
-        return None
-
     ip_column = "ipv6" if df["ip.src"].isnull().all() else "ip"
 
-    # Step 1: Detect client IP based on DCID match
-    try:
-        client_ip = df[df["_ws.col.Info"].str.contains(f"DCID={quic_ids[0]}")][f"{ip_column}.src"].iloc[0]
-    except IndexError:
-        print("[WARN] Could not detect client IP from NetLog ID match")
+    # Focus only on TCP packets
+    df = df[df["ip.proto"] == 6]
+    if df.empty:
         return None
 
-    # Step 2: Detect server IP(s) from matching DCIDs
-    server_ips_quic = []
-    for cid in quic_ids:
-        dst_ips = df[df["_ws.col.Info"].str.contains(f"DCID={cid}")][f"{ip_column}.dst"].unique().tolist()
-        server_ips_quic.extend([ip for ip in dst_ips if ip != client_ip])
-    server_ips_quic = list(set(server_ips_quic))
+    # Identify the top source-destination pair by total bytes
+    df['pair'] = df[f'{ip_column}.src'] + "->" + df[f'{ip_column}.dst']
+    top_pair = df.groupby('pair')['frame.len'].sum().idxmax()
+    client_ip, server_ip = top_pair.split('->')
 
-    if not server_ips_quic:
-        return None
-
-    # Step 3: Infer final server IP based on HEADERS packet frequency
-    server_packets = df[df[f'{ip_column}.src'].isin(server_ips_quic)]
-    server_header_packets = server_packets[server_packets["_ws.col.Info"].str.contains("HEADERS")]
-    if server_header_packets.empty:
-        return None
-
-    server_ip = server_header_packets[f"{ip_column}.src"].value_counts().idxmax()
-
-    # Step 4: Keep only client → server or server → client packets
+    # Keep only packets between client and server
     valid_client = (df[f'{ip_column}.src'] == client_ip) & (df[f'{ip_column}.dst'] == server_ip)
     valid_server = (df[f'{ip_column}.dst'] == client_ip) & (df[f'{ip_column}.src'] == server_ip)
     valid_data = df[valid_client | valid_server].copy()
@@ -131,7 +108,7 @@ def clean_pcap_csv(csv_path, json_path, save=False, save_path=None):
     if valid_data.empty:
         return None
 
-    # Label each packet by direction
+    # Label direction: 0 = client → server, 1 = server → client
     def label_direction(row):
         return 0 if row[f'{ip_column}.src'] == client_ip else 1
 
@@ -158,7 +135,7 @@ def clean_all_pcap_csvs(base_csv_dir, base_json_dir):
             if file.endswith(".csv") and not file.startswith("cleaned_"):
                 csv_path = os.path.join(root, file)
 
-                if "big_file" in csv_path:
+                if "big_file" not in csv_path:
                     continue
                 
                 # Build the corresponding JSON path
@@ -173,7 +150,7 @@ def clean_all_pcap_csvs(base_csv_dir, base_json_dir):
                 print(f"[INFO] Processing {csv_path}...")
 
                 # Clean the CSV
-                cleaned_df = clean_pcap_csv(csv_path, json_path)
+                cleaned_df = clean_pcap_csv_tcp(csv_path, json_path)
 
                 if cleaned_df is not None:
                     cleaned_filename = "cleaned_" + file

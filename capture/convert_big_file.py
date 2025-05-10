@@ -17,16 +17,18 @@ def convert_pcaps(parallel_processes=5):
 
         for pcap in batch:
             category, website = pcap.split(os.path.sep)[-3:-1]
-            if category == "big_file":
+
+            if category != "big_file":
                 continue
+
             csv_dir = os.path.join(csv_base, category, website)
             os.makedirs(csv_dir, exist_ok=True)
 
-            key_file = pcap.replace(".pcap", ".key")
+            key_file = pcap.replace(".pcap", ".key")  # Still useful if TLS decryption is needed
             csv_file = os.path.join(csv_dir, os.path.basename(pcap).replace(".pcap", ".csv"))
 
             tshark_cmd = (
-                f'tshark -r "{pcap}" -R quic -2 -T fields '
+                f'tshark -r "{pcap}" -Y tcp -2 -T fields '
                 '-e frame.number -e frame.time_relative -e frame.len '
                 '-e eth.src -e eth.dst -e ip.src -e ip.dst '
                 '-e ipv6.src -e ipv6.dst -e ip.proto -e _ws.col.Info '
@@ -37,11 +39,10 @@ def convert_pcaps(parallel_processes=5):
             print(f"[INFO] Converting {pcap} -> {csv_file}")
             processes.append(subprocess.Popen(tshark_cmd, shell=True, executable='/bin/bash'))
 
-        # Wait for current batch
         for proc in processes:
             proc.wait()
 
         pcap_files = pcap_files[parallel_processes:]
 
 if __name__ == "__main__":
-    convert_pcaps(5)
+    convert_pcaps(1)
