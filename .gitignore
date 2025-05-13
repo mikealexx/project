@@ -15,3 +15,6 @@ data/
 
 # models
 models/
+
+# google chrome users
+google_meet_voip/meet_profiles/

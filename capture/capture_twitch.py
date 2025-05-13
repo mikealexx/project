@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
-def get_live_twitch_streams(limit=10, base_url="https://www.twitch.tv/chillloop"):
+def get_live_twitch_streams(limit=10, base_url="https://www.twitch.tv/directory/game/Music?sort=VIEWER_COUNT_DESC"):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
@@ -74,10 +74,11 @@ def capture_stream(website, url):
 
     logger.info("Capture finished.")
     tshark.kill_tshark(tshark_process)
+    page_source = driver.page_source
     driver.quit()
     logger.info(f"Capture complete for {url}")
 
-    return driver.page_source
+    return page_source
 
 def capture_streams():
     visited_links = set()
@@ -88,7 +89,7 @@ def capture_streams():
         current_links = ["https://www.twitch.tv/chillloop"]  # fallback default
 
     while current_links:
-        logger.info(f"\n\u2728 Starting new capture round with {len(current_links)} streams")
+        logger.info(f"\n✨ Starting new capture round with {len(current_links)} streams")
         next_links = []
         for link in current_links:
             if link in visited_links:
