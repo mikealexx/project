@@ -98,8 +98,8 @@ def join_meet_with_capture(meet_url, user_profile_dir, wav_file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--meet_url", type=str, default="https://meet.google.com/goa-hxmj-bjz")
-    parser.add_argument("--user_profile", type=str, default="google_meet_voip/meet_profiles/user1")
+    parser.add_argument("--meet_url", type=str, default="https://meet.google.com/zbv-cuwd-cpc")
+    parser.add_argument("--user_profile", type=str, default="google_meet_voip/meet_profiles/user2")
     args = parser.parse_args()
 
     sound_files = glob.glob("google_meet_voip/sounds/*.wav")

@@ -25,9 +25,13 @@ def convert_pcaps(parallel_processes=5):
             key_file = pcap.replace(".pcap", ".key")
             csv_file = os.path.join(csv_dir, os.path.basename(pcap).replace(".pcap", ".csv"))
 
+            if not os.path.exists(key_file):
+                print(f"[WARN] Keylog file missing: {key_file}")
+                continue
+
             tshark_cmd = (
-                f'tshark -r "{pcap}" -R quic -2 -T fields '
-                '-e frame.number -e frame.time_relative -e frame.len '
+                f'tshark -r "{pcap}" -Y quic '
+                '-T fields -e frame.number -e frame.time_relative -e frame.len '
                 '-e eth.src -e eth.dst -e ip.src -e ip.dst '
                 '-e ipv6.src -e ipv6.dst -e ip.proto -e _ws.col.Info '
                 '-E header=y -E separator=, -E quote=d -E occurrence=f '
