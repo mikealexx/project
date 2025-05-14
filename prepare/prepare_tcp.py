@@ -135,7 +135,7 @@ def clean_all_pcap_csvs(base_csv_dir, base_json_dir):
             if file.endswith(".csv") and not file.startswith("cleaned_"):
                 csv_path = os.path.join(root, file)
 
-                if "big_file" not in csv_path:
+                if "big_file" not in csv_path or "game" not in csv_path:
                     continue
                 
                 # Build the corresponding JSON path
