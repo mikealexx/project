@@ -1,95 +1,122 @@
 import os
-# ✅ Suppress TensorFlow logs, use CPU only, disable oneDNN noise
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-
-# ✅ Silence absl logging
-import logging
-import absl.logging
-absl.logging.set_verbosity(absl.logging.ERROR)
-logging.getLogger('absl').setLevel(logging.ERROR)
-
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-import tensorflow as tf
-from tensorflow.keras.utils import to_categorical, load_img, img_to_array
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, Input
-from tensorflow.keras.optimizers import Adam
 from sklearn.preprocessing import LabelEncoder
-
-# ✅ Load config
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import transforms, datasets
+from torch.utils.data import DataLoader, Dataset
+from PIL import Image
+from cnn import SimpleCNN
 import yaml
-with open("config.yaml", "r") as f:
+
+with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
-# ✅ Config
-LABEL_CSV = config["label_output_directory"] + "/labels.csv"
-IMAGE_SIZE = (config["image_size"], config["image_size"])
+# === CONFIG ===
+LABELS_PATH = config['label_output_directory'] + '/labels.csv'
+IMAGES_DIR = config['png_output_directory']
 BATCH_SIZE = 32
-EPOCHS = 10
+# BATCH_SIZE = 16
+EPOCHS = 20
+# EPOCHS = 20
+LEARNING_RATE = 0.001
+IMAGE_SIZE = config['image_size']
+MODEL_DIR = 'models'
 
-# ✅ Load data
-df = pd.read_csv(LABEL_CSV)
-df["label1"] = df["category"]
-df["label2"] = df["category"] + "_" + df["application"]
+# === DATASET CLASS ===
+class ImageLabelDataset(Dataset):
+    def __init__(self, dataframe, label_column, transform=None):
+        self.dataframe = dataframe
+        self.label_column = label_column
+        self.transform = transform
 
-# ✅ Add full PNG paths
-png_base_path = config["png_output_directory"].rstrip("/")
-df["filepath"] = df["filepath"].apply(lambda x: os.path.join(png_base_path, x))
+    def __len__(self):
+        return len(self.dataframe)
 
-def load_images_and_labels(label_type):
-    images = []
-    labels = []
-    for _, row in df.iterrows():
-        try:
-            img = load_img(row["filepath"], target_size=IMAGE_SIZE)
-            img = img_to_array(img) / 255.0
-            images.append(img)
-            labels.append(row[label_type])
-        except Exception as e:
-            print(f"Failed to load {row['filepath']}: {e}")
-    return np.array(images), np.array(labels)
+    def __getitem__(self, idx):
+        row = self.dataframe.iloc[idx]
+        img_path = os.path.join(IMAGES_DIR, row['filepath'])
+        image = Image.open(img_path).convert('RGB').resize((IMAGE_SIZE, IMAGE_SIZE))
+        label = row[self.label_column]
 
-def build_model(num_classes):
-    model = Sequential([
-        Input(shape=(32, 32, 3)),
-        Conv2D(32, (3, 3), activation='relu'),
-        MaxPooling2D(2, 2),
-        Conv2D(64, (3, 3), activation='relu'),
-        MaxPooling2D(2, 2),
-        Flatten(),
-        Dense(128, activation='relu'),
-        Dropout(0.5),
-        Dense(num_classes, activation='softmax')
-    ])
-    model.compile(optimizer=Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
-    return model
+        if self.transform:
+            image = self.transform(image)
 
-# ✅ Training loop for label1 and label2
-for label_type in ["label1", "label2"]:
-    print(f"\n🚀 Training model for {label_type}...")
-    X, y = load_images_and_labels(label_type)
+        return image, label
+
+# === TRAIN FUNCTION ===
+def train_model(label_column, model_save_path):
+    df = pd.read_csv(LABELS_PATH)
     
-    le = LabelEncoder()
-    y_encoded = le.fit_transform(y)
-    y_cat = to_categorical(y_encoded)
+    if 'category_application' not in df.columns and label_column == 'category_application':
+        df['category_application'] = df['category'] + '_' + df['application']
+    
+    df[label_column] = LabelEncoder().fit_transform(df[label_column])
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y_cat, test_size=0.2, random_state=42)
 
-    model = build_model(num_classes=y_cat.shape[1])
-    model.fit(X_train, y_train, validation_data=(X_test, y_test), batch_size=BATCH_SIZE, epochs=EPOCHS)
+    train_df, test_df = train_test_split(df, test_size=0.1, stratify=df[label_column], random_state=42)
 
-    # ✅ Save model in modern format
-    model.save(f"model_{label_type}.keras")
+    print(f"Training on {len(train_df)} samples, Testing on {len(test_df)} samples")
 
-    # ✅ Save label mappings
-    with open(f"labels_{label_type}.txt", "w") as f:
-        for label in le.classes_:
-            f.write(f"{label}\n")
+    transform = transforms.Compose([
+        transforms.ToTensor()
+    ])
+    # transform = transforms.Compose([
+    #     transforms.RandomHorizontalFlip(),
+    #     transforms.RandomVerticalFlip(),
+    #     transforms.ColorJitter(brightness=0.2, contrast=0.2),
+    #     transforms.ToTensor()
+    # ])
 
-    # ✅ Final evaluation on test set
-    loss, acc = model.evaluate(X_test, y_test, verbose=0)
-    print(f"✅ Test results for {label_type} — Accuracy: {acc:.4f}, Loss: {loss:.4f}")
+
+    train_dataset = ImageLabelDataset(train_df, label_column, transform)
+    test_dataset = ImageLabelDataset(test_df, label_column, transform)
+
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+    num_classes = len(df[label_column].unique())
+    model = SimpleCNN(num_classes)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+    for epoch in range(EPOCHS):
+        model.train()
+        running_loss = 0.0
+        for images, labels in train_loader:
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+        print(f"Epoch {epoch+1}/{EPOCHS}, Loss: {running_loss/len(train_loader):.4f}")
+
+    # Evaluate
+    model.eval()
+    correct = total = 0
+    with torch.no_grad():
+        for images, labels in test_loader:
+            outputs = model(images)
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    print(f"Test Accuracy for {label_column}: {100 * correct / total:.2f}%\n")
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    torch.save(model.state_dict(), model_save_path)
+
+# === MAIN ===
+def main():
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    print("Training model for category:")
+    train_model('category', os.path.join(MODEL_DIR, 'model_category.pt'))
+    print("Training model for category_application:")
+    train_model('category_application', os.path.join(MODEL_DIR, 'model_category_application.pt'))
+
+if __name__ == '__main__':
+    main()
