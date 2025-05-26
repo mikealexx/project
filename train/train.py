@@ -20,7 +20,7 @@ LABELS_PATH = config['label_output_directory'] + '/labels.csv'
 IMAGES_DIR = config['png_output_directory']
 BATCH_SIZE = 32
 # BATCH_SIZE = 16
-EPOCHS = 20
+EPOCHS = 10
 # EPOCHS = 20
 LEARNING_RATE = 0.001
 IMAGE_SIZE = config['image_size']
@@ -57,7 +57,7 @@ def train_model(label_column, model_save_path):
     df[label_column] = LabelEncoder().fit_transform(df[label_column])
 
 
-    train_df, test_df = train_test_split(df, test_size=0.1, stratify=df[label_column], random_state=42)
+    train_df, test_df = train_test_split(df, test_size=0.2, stratify=df[label_column], random_state=42)
 
     print(f"Training on {len(train_df)} samples, Testing on {len(test_df)} samples")
 
