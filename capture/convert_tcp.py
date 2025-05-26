@@ -18,7 +18,7 @@ def convert_pcaps(parallel_processes=5):
         for pcap in batch:
             category, website = pcap.split(os.path.sep)[-3:-1]
 
-            if category != "big_file" or category != "game":
+            if category != "big_file" and category != "game":
                 continue
 
             csv_dir = os.path.join(csv_base, category, website)

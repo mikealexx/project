@@ -26,6 +26,7 @@ def capture_io_game_traffic(website, url):
 
     pcap_file = f"{base_path}.pcap"
     key_file = f"{base_path}.key"
+    json_file = f"{base_path}.json"
 
     # Create the key log file
     with open(key_file, 'a'):
@@ -40,6 +41,7 @@ def capture_io_game_traffic(website, url):
     options.add_argument("--no-sandbox")
     options.add_argument("--window-size=1920,1080")
     options.add_argument(f"--ssl-key-log-file={key_file}")
+    options.add_argument(f"--log-net-log={json_file}")
     options.add_argument("--autoplay-policy=no-user-gesture-required")
 
     logger.info("Starting IO game traffic capture...")
