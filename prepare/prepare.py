@@ -152,36 +152,39 @@ def clean_pcap_csv(csv_path, json_path, save=False, save_path=None):
 def clean_all_pcap_csvs(base_csv_dir, base_json_dir):
     """
     Recursively clean all CSVs under base_csv_dir and save them with 'cleaned_' prefix.
+    If any file fails due to JSON or CSV issues, it will be skipped.
     """
     for root, dirs, files in os.walk(base_csv_dir):
         for file in files:
             if file.endswith(".csv") and not file.startswith("cleaned_"):
                 csv_path = os.path.join(root, file)
 
-                if "big_file" in csv_path:
+                if "big_file" in csv_path or "game" in csv_path:
                     continue
-                
+
                 # Build the corresponding JSON path
                 relative_path = os.path.relpath(csv_path, base_csv_dir)
                 json_path = os.path.join(base_json_dir, relative_path)
                 json_path = os.path.splitext(json_path)[0] + ".json"  # replace .csv with .json
-                
+
                 if not os.path.exists(json_path):
                     print(f"[WARN] JSON not found for {csv_path}, skipping.")
                     continue
 
                 print(f"[INFO] Processing {csv_path}...")
 
-                # Clean the CSV
-                cleaned_df = clean_pcap_csv(csv_path, json_path)
+                try:
+                    cleaned_df = clean_pcap_csv(csv_path, json_path)
+                    if cleaned_df is not None:
+                        cleaned_filename = "cleaned_" + file
+                        cleaned_path = os.path.join(root, cleaned_filename)
+                        cleaned_df.to_csv(cleaned_path, index=False)
+                        print(f"[INFO] Saved cleaned CSV to {cleaned_path}.")
+                    else:
+                        print(f"[WARN] No valid data in {csv_path}, skipped saving.")
+                except Exception as e:
+                    print(f"[ERROR] Failed to process {csv_path}: {e}")
 
-                if cleaned_df is not None:
-                    cleaned_filename = "cleaned_" + file
-                    cleaned_path = os.path.join(root, cleaned_filename)
-                    cleaned_df.to_csv(cleaned_path, index=False)
-                    print(f"[INFO] Saved cleaned CSV to {cleaned_path}.")
-                else:
-                    print(f"[WARN] No valid data in {csv_path}, skipped saving.") 
 
 if __name__ == "__main__":
     base_csv_dir = config['csv_output_directory']
