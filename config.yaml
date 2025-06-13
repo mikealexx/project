@@ -6,14 +6,22 @@ temp_directory: "./temp"
 
 # Output directories
 captures_directory: "./captures"
-pcap_output_directory: "./captures/pcap"
-csv_output_directory: "./captures/csv"
+# pcap_output_directory: "./captures/pcap"
+# csv_output_directory: "./captures/csv"
+pcap_output_directory: "/mnt/d/Projects/project_data/pcap"
+csv_output_directory: "/mnt/d/Projects/project_data/csv"
 data_directory: "./data"
 png_output_directory: "./data/png"
 label_output_directory: "./data/labels"
 
 # QUIC packet capture duration in seconds
-capture_duration: 6
+capture_duration: 30
+
+# PNG image capture window
+window_size: 6.5
+
+# Overlap between consecutive image captures (0.0 to 1.0)
+window_overlap: 0.5
 
 # Network interface to capture on (e.g., eth0, wlan0)
 network_interface: "eth0"
