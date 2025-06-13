@@ -1,5 +1,6 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import TimeoutException
 from datetime import datetime
 import time
 import os
@@ -37,31 +38,56 @@ def capture_io_game_traffic(website, url):
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-quic")  # Disable QUIC for TCP traffic
     options.add_argument("--disable-application-cache")
-    options.add_argument("--incognito")
+    # options.add_argument("--incognito")
     options.add_argument("--no-sandbox")
     options.add_argument("--window-size=1920,1080")
     options.add_argument(f"--ssl-key-log-file={key_file}")
     options.add_argument(f"--log-net-log={json_file}")
     options.add_argument("--autoplay-policy=no-user-gesture-required")
+    options.add_extension("utils/ublock.crx")
 
     logger.info("Starting IO game traffic capture...")
     tshark_process = tshark.run_tshark(config["network_interface"], pcap_file)
     time.sleep(config["warmup_time"])
 
-    # Launch browser
     driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(3)  # Set timeout to 3 seconds
 
     logger.info(f"Opening game: {url}")
-    driver.get(url)
+
+    try:
+        driver.get(url)
+    except TimeoutException:
+        logger.warning(f"Page load timed out for {url}. Skipping capture.")
+        try:
+            tshark_process.kill()
+            os.system("pkill -9 -f tshark")
+            logger.info("tshark process killed.")
+        except Exception as e:
+            logger.warning(f"Failed to kill tshark: {e}")
+
+        driver.quit()
+
+        for f in [pcap_file, json_file, key_file]:
+            try:
+                os.remove(f)
+            except FileNotFoundError:
+                pass
+        return
 
     # Keep the browser open for a specified duration to capture traffic
-    capture_duration = config.get("capture_duration", 60)  # Default to 60 seconds if not specified
+    capture_duration = config.get("capture_duration", 60)
     time.sleep(capture_duration)
 
     logger.info("Capture finished. Cleaning up...")
-    tshark.kill_tshark(tshark_process)
-    driver.quit()
+    try:
+        tshark_process.kill()
+        os.system("pkill -9 -f tshark")
+        logger.info("tshark process killed.")
+    except Exception as e:
+        logger.warning(f"Failed to kill tshark: {e}")
 
+    driver.quit()
     logger.info(f"Traffic capture complete for {url}")
 
 def capture_io_games():

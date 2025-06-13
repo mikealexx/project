@@ -39,6 +39,7 @@ def capture_big_file_tcp(website, url):
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-quic")  # <== explicitly disable QUIC
     options.add_argument("--disable-application-cache")
+    options.add_argument("--headless")  # Run in headless mode
     options.add_argument("--incognito")
     options.add_argument("--no-sandbox")
     options.add_argument("--window-size=1920,1080")
@@ -81,6 +82,7 @@ def capture_big_file_tcp(website, url):
 
     logger.info("Capture finished. Cleaning up...")
     tshark.kill_tshark(tshark_process)
+    os.system("pkill -9 -f tshark")
     driver.quit()
 
     # Delete any downloaded files
@@ -92,9 +94,11 @@ def capture_big_file_tcp(website, url):
 
     logger.info(f"TCP Capture complete for {url}")
 
-def capture_big_files():
+def capture_big_files(skip_websites=[]):
     big_file_urls = dir_utils.load_links_from_category("big_file", config["links_directory"])
     for website, urls in big_file_urls.items():
+        if website in skip_websites:
+            continue
         for url in urls:
             try:
                 capture_big_file_tcp(website, url)
@@ -102,4 +106,4 @@ def capture_big_files():
                 logger.error(f"Error capturing {url}: {e}")
 
 if __name__ == "__main__":
-    capture_big_files()
+    capture_big_files(["one_drive", "google_drive"])

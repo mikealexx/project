@@ -141,4 +141,4 @@ def capture_videos(skip_websites=[]):
                 logger.error(f"Error capturing {url}: {e}")
 
 if __name__ == "__main__":
-    capture_videos(["youtube", "rumble", "dailymotion"])
+    capture_videos(["youtube", "dailymotion", "vimeo"])

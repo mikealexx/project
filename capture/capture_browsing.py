@@ -67,9 +67,11 @@ def issure_request(website, url):
         chrome_process.wait()
 
 
-def capture_browsing():
+def capture_browsing(skip_websites=[]):
     browsing_urls = dir_utils.load_links_from_category("browsing", config["links_directory"])
     for website, urls in browsing_urls.items():
+        if website in skip_websites:
+            continue
         for url in urls:
             try:
                 issure_request(website, url)
@@ -78,4 +80,4 @@ def capture_browsing():
                 continue
 
 if __name__ == "__main__":
-    capture_browsing()
+    capture_browsing(["adobe", "cloudflare", "discord", "facebook", "google"])
