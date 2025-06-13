@@ -47,7 +47,7 @@ def predict_image(model_path, label_column, image_path):
 
 # === MAIN ===
 def main():
-    image_path = "data/png/video/vimeo/vimeo-[2025-05-06-18-49-18].png"
+    image_path = "data/png/browsing/pinterest/pinterest-[2025-06-02-16-21-10].png"
 
     category = predict_image(os.path.join(MODEL_DIR, 'model_category.pt'), 'category', image_path)
     category_app = predict_image(os.path.join(MODEL_DIR, 'model_category_application.pt'), 'category_application', image_path)
