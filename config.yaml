@@ -18,10 +18,10 @@ label_output_directory: "./data/labels"
 capture_duration: 30
 
 # PNG image capture window
-window_size: 6.5
+window_size: 2
 
 # Overlap between consecutive image captures (0.0 to 1.0)
-window_overlap: 0.5
+window_overlap: 0.0
 
 # Network interface to capture on (e.g., eth0, wlan0)
 network_interface: "eth0"

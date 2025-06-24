@@ -37,15 +37,16 @@ def create_kde_density_image(df, image_size=IMAGE_SIZE):
 
     for direction, channel in [(0, 2), (1, 0)]:
         sub_df = df[df['Direction'] == direction]
-        if len(sub_df) == 0:
+        if len(sub_df) < 2:
+            print(f"[WARN] Not enough samples for KDE in direction {direction}, skipping.")
             continue
 
         values = normalize_packets(sub_df)
 
         try:
             kde = gaussian_kde(values, bw_method='scott')
-        except np.linalg.LinAlgError:
-            print(f"[WARN] KDE failed for direction {direction} due to singular matrix.")
+        except Exception as e:
+            print(f"[WARN] KDE failed for direction {direction}: {e}")
             continue
 
         x_grid, y_grid = np.meshgrid(
@@ -106,6 +107,7 @@ def create_pngs_from_trace(cleaned_csv_path):
         return
 
     num_windows = math.floor((total_duration - WINDOW_SIZE) / STEP_SIZE) + 1
+    img_index = 0  # <-- new index to keep track of actual saved images
     for i in range(num_windows):
         window_start = min_time + i * STEP_SIZE
         window_end = window_start + WINDOW_SIZE
@@ -124,9 +126,11 @@ def create_pngs_from_trace(cleaned_csv_path):
         img_data = normalize_histogram(img_data)
         img = Image.fromarray(np.uint8(img_data), mode="RGB").transpose(Image.FLIP_TOP_BOTTOM)
 
-        save_path = os.path.join(save_dir, f"{base_filename}_{i}.png")
+        save_path = os.path.join(save_dir, f"{base_filename}_{img_index}.png")  # use img_index
         img.save(save_path)
         print(f"[INFO] Saved PNG to {save_path}.")
+        img_index += 1  # only increment when actually saving
+
 
 def create_pngs_for_all_cleaned_csvs(base_cleaned_csv_dir=config['csv_output_directory'], skip_categories=[]):
     for root, dirs, files in os.walk(base_cleaned_csv_dir):
@@ -138,4 +142,4 @@ def create_pngs_for_all_cleaned_csvs(base_cleaned_csv_dir=config['csv_output_dir
                 create_pngs_from_trace(cleaned_csv_path)
 
 if __name__ == "__main__":
-    create_pngs_for_all_cleaned_csvs(skip_categories=["browsing", "game", "streaming", "video"])
+    create_pngs_for_all_cleaned_csvs(skip_categories=["game", "video", "browsing", "streaming"])

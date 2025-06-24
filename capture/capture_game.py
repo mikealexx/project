@@ -36,7 +36,7 @@ def capture_io_game_traffic(website, url):
     # Chrome options for capturing IO game traffic
     options = Options()
     options.add_argument("--disable-gpu")
-    options.add_argument("--disable-quic")  # Disable QUIC for TCP traffic
+    options.add_argument("--disable-quic")
     options.add_argument("--disable-application-cache")
     # options.add_argument("--incognito")
     options.add_argument("--no-sandbox")
@@ -44,16 +44,16 @@ def capture_io_game_traffic(website, url):
     options.add_argument(f"--ssl-key-log-file={key_file}")
     options.add_argument(f"--log-net-log={json_file}")
     options.add_argument("--autoplay-policy=no-user-gesture-required")
-    options.add_extension("utils/ublock.crx")
+    options.add_extension("utils/ublock.cwrx")
 
     logger.info("Starting IO game traffic capture...")
     tshark_process = tshark.run_tshark(config["network_interface"], pcap_file)
     time.sleep(config["warmup_time"])
 
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(3)  # Set timeout to 3 seconds
+    driver.set_page_load_timeout(config["wait_timeout"])
 
-    logger.info(f"Opening game: {url}")
+    logger.info(f"Oapening game: {url}")
 
     try:
         driver.get(url)
