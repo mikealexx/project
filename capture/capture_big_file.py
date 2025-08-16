@@ -106,4 +106,4 @@ def capture_big_files(skip_websites=[]):
                 logger.error(f"Error capturing {url}: {e}")
 
 if __name__ == "__main__":
-    capture_big_files(["one_drive", "google_drive"])
+    capture_big_files(["dropbox", "google_drive"])

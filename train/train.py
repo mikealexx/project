@@ -110,13 +110,12 @@ class ImageLabelDataset(Dataset):
                 image = self.transform(image)
             return image, label
 
-def train_and_validate(train_loader, val_loader, num_classes, fold, label_column):
+def train_and_validate(train_loader, val_loader, num_classes, fold, label_column, label_mapping):
     model = SimpleCNN(num_classes).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-    best_accuracy = 0
-    best_epoch = 0
+    accuracy = 0
     epoch_losses = []
 
     for epoch in range(EPOCHS):
@@ -149,9 +148,6 @@ def train_and_validate(train_loader, val_loader, num_classes, fold, label_column
                 all_predicted_labels.extend(predicted.cpu().numpy())
 
         accuracy = 100 * correct / total
-        if accuracy > best_accuracy:
-            best_accuracy = accuracy
-            best_epoch = epoch + 1
 
         epoch_metrics_records.append({
             "fold": fold,
@@ -164,26 +160,55 @@ def train_and_validate(train_loader, val_loader, num_classes, fold, label_column
 
         print(f"Epoch {epoch + 1}/{EPOCHS}, Loss: {avg_loss:.4f}, Val Acc: {accuracy:.2f}%")
 
-    # Track misclassified labels
-    wrong_preds = [true for true, pred in zip(all_true_labels, all_predicted_labels) if true != pred]
-    wrong_hist = Counter(wrong_preds)
+    # Count true label frequencies
+    total_counts = Counter(all_true_labels)
 
-    for label_id, count in wrong_hist.items():
+    # Identify misclassified samples (true != predicted)
+    wrong_preds = [(true, pred) for true, pred in zip(all_true_labels, all_predicted_labels) if true != pred]
+    wrong_hist = Counter([true for true, _ in wrong_preds])
+
+    # Detailed breakdown per misclassified label
+    wrong_breakdown = {}
+    for true, pred in wrong_preds:
+        if true not in wrong_breakdown:
+            wrong_breakdown[true] = Counter()
+        wrong_breakdown[true][pred] += 1
+
+    for label_id in total_counts:
+        total = total_counts[label_id]
+        misclassified = wrong_hist.get(label_id, 0)
+
+        # Breakdown string: e.g., "browsing:5;video:2"
+        breakdown_str = ""
+        if label_id in wrong_breakdown:
+            breakdown_str = ";".join(
+                f"{label_mapping[pred]}:{count}"
+                for pred, count in wrong_breakdown[label_id].items()
+            )
+
         misclass_data.append({
             "fold": fold,
             "label_column": label_column,
             "label_id": label_id,
-            "misclassified_count": count
+            "label_name": label_mapping[label_id],
+            "misclassified_count": misclassified,
+            "total_count": total,
+            "wrongly_predicted_labels": breakdown_str
         })
 
-    return model, best_accuracy, best_epoch, np.mean(epoch_losses)
+    return model, accuracy, np.mean(epoch_losses)
+
 
 def kfold_train(label_column, model_prefix, servermode=False):
     df = pd.read_csv(LABELS_PATH)
     if 'category_application' not in df.columns and label_column == 'category_application':
         df['category_application'] = df['category'] + '_' + df['application']
-    df[label_column] = LabelEncoder().fit_transform(df[label_column])
-    num_classes = len(df[label_column].unique())
+
+    label_encoder = LabelEncoder()
+    df[label_column] = label_encoder.fit_transform(df[label_column])
+    label_mapping = dict(zip(label_encoder.transform(label_encoder.classes_), label_encoder.classes_))
+    num_classes = len(label_encoder.classes_)
+
     transform = transforms.Compose([transforms.ToTensor()])
     accuracy_list = []
 
@@ -208,7 +233,9 @@ def kfold_train(label_column, model_prefix, servermode=False):
         train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-        model, fold_acc, best_epoch, mean_loss = train_and_validate(train_loader, val_loader, num_classes, fold + 1, label_column)
+        model, fold_acc,  mean_loss = train_and_validate(
+            train_loader, val_loader, num_classes, fold + 1, label_column, label_mapping
+        )
         print(f"Fold {fold + 1} Validation Accuracy: {fold_acc:.2f}%")
         accuracy_list.append(fold_acc)
 
@@ -218,8 +245,7 @@ def kfold_train(label_column, model_prefix, servermode=False):
             "num_train_samples": len(train_dataset),
             "num_val_samples": len(val_dataset),
             "val_accuracy (%)": fold_acc,
-            "mean_epoch_loss": mean_loss,
-            "best_epoch": best_epoch
+            "mean_epoch_loss": mean_loss
         })
 
         os.makedirs(MODEL_DIR, exist_ok=True)

@@ -5,7 +5,13 @@ from PIL import Image
 import yaml
 from scipy.stats import gaussian_kde
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.decomposition import PCA
 import math
+import torch
+
+# Setup device (for future GPU use if needed)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"[INFO] Using device: {device}")
 
 # Load config
 with open('config.yaml', 'r') as f:
@@ -42,9 +48,12 @@ def create_kde_density_image(df, image_size=IMAGE_SIZE):
             continue
 
         values = normalize_packets(sub_df)
-
+        # Apply PCA to keep only non-redundant dimensions
+        pca = PCA()
+        values_pca = pca.fit_transform(values.T).T
+        
         try:
-            kde = gaussian_kde(values, bw_method='scott')
+            kde = gaussian_kde(values_pca , bw_method='scott')
         except Exception as e:
             print(f"[WARN] KDE failed for direction {direction}: {e}")
             continue
@@ -107,7 +116,7 @@ def create_pngs_from_trace(cleaned_csv_path):
         return
 
     num_windows = math.floor((total_duration - WINDOW_SIZE) / STEP_SIZE) + 1
-    img_index = 0  # <-- new index to keep track of actual saved images
+    img_index = 0
     for i in range(num_windows):
         window_start = min_time + i * STEP_SIZE
         window_end = window_start + WINDOW_SIZE
@@ -120,16 +129,16 @@ def create_pngs_from_trace(cleaned_csv_path):
 
         window_df = df[(df['Time'] >= window_start) & (df['Time'] < window_end)]
         if window_df.empty:
-            continue
+            continue  # Don't increment img_index if window is empty
 
         img_data = create_kde_density_image(window_df)
         img_data = normalize_histogram(img_data)
         img = Image.fromarray(np.uint8(img_data), mode="RGB").transpose(Image.FLIP_TOP_BOTTOM)
 
-        save_path = os.path.join(save_dir, f"{base_filename}_{img_index}.png")  # use img_index
+        save_path = os.path.join(save_dir, f"{base_filename}_{img_index}.png")
         img.save(save_path)
         print(f"[INFO] Saved PNG to {save_path}.")
-        img_index += 1  # only increment when actually saving
+        img_index += 1  # Only increment after successful save
 
 
 def create_pngs_for_all_cleaned_csvs(base_cleaned_csv_dir=config['csv_output_directory'], skip_categories=[]):
@@ -142,4 +151,4 @@ def create_pngs_for_all_cleaned_csvs(base_cleaned_csv_dir=config['csv_output_dir
                 create_pngs_from_trace(cleaned_csv_path)
 
 if __name__ == "__main__":
-    create_pngs_for_all_cleaned_csvs(skip_categories=["game", "video", "browsing", "streaming"])
+    create_pngs_for_all_cleaned_csvs(skip_categories=["big_file", "streaming", "video", "game"])

@@ -2,84 +2,114 @@ import os
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 # === CONFIG ===
 TRACKING_DIR = "tracking"
-FIGURE_DIR = "figures"
+TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+FIGURE_DIR = os.path.join("figures", TIMESTAMP)
 os.makedirs(FIGURE_DIR, exist_ok=True)
 
 # === Load Data ===
-fold_summary_path = os.path.join(TRACKING_DIR, "fold_summary.csv")
-epoch_metrics_path = os.path.join(TRACKING_DIR, "epoch_metrics.csv")
-misclassifications_path = os.path.join(TRACKING_DIR, "misclassifications.csv")
+fold_df = pd.read_csv(os.path.join(TRACKING_DIR, "fold_summary.csv"))
+epoch_df = pd.read_csv(os.path.join(TRACKING_DIR, "epoch_metrics.csv"))
+misclass_df = pd.read_csv(os.path.join(TRACKING_DIR, "misclassifications.csv"))
 
-fold_df = pd.read_csv(fold_summary_path)
-epoch_df = pd.read_csv(epoch_metrics_path)
-misclass_df = pd.read_csv(misclassifications_path)
-
-# === 1. Fold Accuracy Bar Plot ===
+# === Separate Figure: Training Loss ===
 plt.figure(figsize=(10, 6))
-sns.barplot(data=fold_df, x="fold", y="val_accuracy (%)", hue="label_column", palette="muted")
-plt.title("Validation Accuracy per Fold", fontsize=14)
-plt.xlabel("Fold", fontsize=12)
-plt.ylabel("Validation Accuracy (%)", fontsize=12)
-plt.ylim(0, 100)
-plt.grid(axis='y', linestyle='--', alpha=0.6)
-plt.legend(title="Label Type")
-plt.tight_layout()
-plt.savefig(os.path.join(FIGURE_DIR, "fold_accuracy_barplot.png"), dpi=300)
-plt.show(block=False)
-
-# === 2. Mean Epoch Loss per Fold and Label ===
-plt.figure(figsize=(10, 6))
-sns.barplot(data=fold_df, x="fold", y="mean_epoch_loss", hue="label_column", palette="muted")
-plt.title("Mean Epoch Training Loss per Fold", fontsize=14)
-plt.xlabel("Fold", fontsize=12)
-plt.ylabel("Mean Training Loss", fontsize=12)
-plt.grid(axis='y', linestyle='--', alpha=0.6)
-plt.legend(title="Label Type")
-plt.tight_layout()
-plt.savefig(os.path.join(FIGURE_DIR, "mean_loss_per_fold.png"), dpi=300)
-plt.show(block=False)
-
-# === 3. Training Loss Across Epochs ===
-plt.figure(figsize=(10, 6))
-sns.lineplot(data=epoch_df, x="epoch", y="train_loss", hue="label_column", style="fold", markers=True, dashes=False, palette="dark")
+sns.lineplot(data=epoch_df, x="epoch", y="train_loss", hue="label_column", style="fold",
+             markers=True, dashes=False, palette="dark")
 plt.title("Training Loss Across Epochs", fontsize=14)
-plt.xlabel("Epoch", fontsize=12)
-plt.ylabel("Training Loss", fontsize=12)
-plt.grid(True, linestyle='--', alpha=0.6)
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.grid(True, linestyle="--", alpha=0.6)
 plt.tight_layout()
-plt.savefig(os.path.join(FIGURE_DIR, "loss_curve.png"), dpi=300)
-plt.show(block=False)
+plt.savefig(os.path.join(FIGURE_DIR, "training_loss.png"), dpi=300)
+plt.close()
 
-# === 4. Validation Accuracy Across Epochs ===
+# === Separate Figure: Validation Accuracy ===
 plt.figure(figsize=(10, 6))
-sns.lineplot(data=epoch_df, x="epoch", y="val_accuracy (%)", hue="label_column", style="fold", markers=True, dashes=False, palette="deep")
+sns.lineplot(data=epoch_df, x="epoch", y="val_accuracy (%)", hue="label_column", style="fold",
+             markers=True, dashes=False, palette="deep")
 plt.title("Validation Accuracy Across Epochs", fontsize=14)
-plt.xlabel("Epoch", fontsize=12)
-plt.ylabel("Validation Accuracy (%)", fontsize=12)
+plt.xlabel("Epoch")
+plt.ylabel("Accuracy (%)")
 plt.ylim(0, 100)
-plt.grid(True, linestyle='--', alpha=0.6)
+plt.grid(True, linestyle="--", alpha=0.6)
 plt.tight_layout()
-plt.savefig(os.path.join(FIGURE_DIR, "val_accuracy_curve.png"), dpi=300)
-plt.show(block=False)
+plt.savefig(os.path.join(FIGURE_DIR, "val_accuracy.png"), dpi=300)
+plt.close()
 
-# === 5. Misclassified Labels Histogram per Fold and Label Column ===
-for (label_column, fold), group_df in misclass_df.groupby(["label_column", "fold"]):
-    plt.figure(figsize=(10, 6))
-    sorted_df = group_df.sort_values("label_id")
-    sns.barplot(data=sorted_df, x="label_id", y="misclassified_count", palette="rocket")
-    plt.title(f"Misclassified Label Histogram (Fold {fold}, {label_column})", fontsize=14)
-    plt.xlabel("Label ID", fontsize=12)
-    plt.ylabel("Misclassified Count", fontsize=12)
-    plt.grid(axis='y', linestyle='--', alpha=0.6)
+# === Build Confusion Matrices ===
+conf_matrices = {}
+
+for label_column, group_df in misclass_df.groupby("label_column"):
+    label_names = sorted(group_df["label_name"].unique())
+    matrix = pd.DataFrame(0, index=label_names, columns=label_names)
+
+    for _, row in group_df.iterrows():
+        true_label = row["label_name"]
+        total = row["total_count"]
+        misclassified = row["misclassified_count"]
+        correct = total - misclassified
+        matrix.at[true_label, true_label] += correct
+
+        if pd.notna(row["wrongly_predicted_labels"]) and row["wrongly_predicted_labels"].strip():
+            for entry in row["wrongly_predicted_labels"].split(";"):
+                pred_label, count = entry.split(":")
+                matrix.at[true_label, pred_label] += int(count)
+
+    matrix_normalized = matrix.div(matrix.sum(axis=1), axis=0) * 100
+    conf_matrices[label_column] = (matrix_normalized, label_names)
+
+    # === Save Separate Heatmap
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(matrix_normalized, annot=True, fmt=".1f", cmap="Blues", cbar=True,
+                xticklabels=label_names, yticklabels=label_names)
+    plt.title(f"Confusion Matrix – {label_column}", fontsize=14)
+    plt.xlabel("Predicted Label")
+    plt.ylabel("True Label")
+    plt.xticks(rotation=90)
+    plt.yticks(rotation=0)
     plt.tight_layout()
+    plt.savefig(os.path.join(FIGURE_DIR, f"confusion_matrix_{label_column}.png"), dpi=300)
+    plt.close()
 
-    fname = f"misclass_histogram_fold{fold}_{label_column}.png"
-    plt.savefig(os.path.join(FIGURE_DIR, fname), dpi=300)
-    plt.show(block=False)
+# === Combined Figure with 2x2 layout ===
+fig, axs = plt.subplots(2, 2, figsize=(20, 14))
+plt.subplots_adjust(hspace=0.35, wspace=0.25)
 
-print("All graphs generated and saved in ./figures/")
-input("Press Enter to close all figures and exit...")
-plt.close('all')
+# Top-left: Training Loss
+ax = axs[0, 0]
+sns.lineplot(data=epoch_df, x="epoch", y="train_loss", hue="label_column", style="fold",
+             markers=True, dashes=False, palette="dark", ax=ax)
+ax.set_title("Training Loss Across Epochs", fontsize=14)
+ax.set_xlabel("Epoch")
+ax.set_ylabel("Loss")
+ax.grid(True, linestyle="--", alpha=0.6)
+
+# Top-right: Validation Accuracy
+ax = axs[0, 1]
+sns.lineplot(data=epoch_df, x="epoch", y="val_accuracy (%)", hue="label_column", style="fold",
+             markers=True, dashes=False, palette="deep", ax=ax)
+ax.set_title("Validation Accuracy Across Epochs", fontsize=14)
+ax.set_xlabel("Epoch")
+ax.set_ylabel("Accuracy (%)")
+ax.set_ylim(0, 100)
+ax.grid(True, linestyle="--", alpha=0.6)
+
+for i, label_column in enumerate(["category", "category_application"]):
+    ax = axs[1, i]
+    matrix, label_names = conf_matrices[label_column]
+    sns.heatmap(matrix, annot=True, fmt=".1f", cmap="Blues", cbar=True,
+                xticklabels=label_names, yticklabels=label_names, ax=ax)
+    ax.set_title(f"Confusion Matrix – {label_column}", fontsize=14)
+    ax.set_xlabel("Predicted Label")
+    ax.set_ylabel("True Label")
+    ax.tick_params(axis='x', rotation=90)
+    ax.tick_params(axis='y', rotation=0)
+
+fig.suptitle("Training Summary and Confusion Matrices", fontsize=18)
+plt.tight_layout(rect=[0, 0, 1, 0.97])
+plt.savefig(os.path.join(FIGURE_DIR, "combined_summary.png"), dpi=300)
+plt.show()

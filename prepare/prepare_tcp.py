@@ -126,7 +126,7 @@ def clean_pcap_csv_tcp(csv_path, save=False, save_path=None):
 
     return clean_data
 
-def clean_all_pcap_csvs(base_csv_dir, base_json_dir):
+def clean_all_pcap_csvs(base_csv_dir, base_json_dir, skip_categories=[]):
     """
     Recursively clean all CSVs under base_csv_dir and save them with 'cleaned_' prefix.
     """
@@ -134,6 +134,9 @@ def clean_all_pcap_csvs(base_csv_dir, base_json_dir):
         for file in files:
             if file.endswith(".csv") and not file.startswith("cleaned_"):
                 csv_path = os.path.join(root, file)
+
+                if any(category in csv_path for category in skip_categories):
+                    continue
 
                 if "big_file" not in csv_path and "game" not in csv_path:
                     continue
@@ -163,4 +166,4 @@ def clean_all_pcap_csvs(base_csv_dir, base_json_dir):
 if __name__ == "__main__":
     base_csv_dir = config['csv_output_directory']
     base_json_dir = config['pcap_output_directory']
-    clean_all_pcap_csvs(base_csv_dir, base_json_dir)
+    clean_all_pcap_csvs(base_csv_dir, base_json_dir, ["big_file"])

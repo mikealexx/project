@@ -44,7 +44,7 @@ def capture_io_game_traffic(website, url):
     options.add_argument(f"--ssl-key-log-file={key_file}")
     options.add_argument(f"--log-net-log={json_file}")
     options.add_argument("--autoplay-policy=no-user-gesture-required")
-    options.add_extension("utils/ublock.cwrx")
+    options.add_extension("utils/ublock.crx")
 
     logger.info("Starting IO game traffic capture...")
     tshark_process = tshark.run_tshark(config["network_interface"], pcap_file)

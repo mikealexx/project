@@ -7,7 +7,7 @@ from utils import dir_utils
 with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
-def convert_pcaps(parallel_processes=5):
+def convert_pcaps(parallel_processes=5, skip_categories=[]):
     pcap_files = dir_utils.find_all_pcap_files(config["pcap_output_directory"])
     csv_base = config["csv_output_directory"]
 
@@ -17,6 +17,8 @@ def convert_pcaps(parallel_processes=5):
 
         for pcap in batch:
             category, website = pcap.split(os.path.sep)[-3:-1]
+            if category in skip_categories:
+                continue
 
             if category != "big_file" and category != "game":
                 continue
@@ -45,4 +47,4 @@ def convert_pcaps(parallel_processes=5):
         pcap_files = pcap_files[parallel_processes:]
 
 if __name__ == "__main__":
-    convert_pcaps(1)
+    convert_pcaps(1, ["big_file"])
