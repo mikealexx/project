@@ -16,6 +16,12 @@ data/
 # models
 models/
 
+# graphs
+figures/
+
+# tracking results
+tracking/
+
 # google chrome users
 google_meet_voip/meet_profiles/
 
